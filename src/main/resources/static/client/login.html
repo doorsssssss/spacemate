@@ -1,0 +1,157 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpaceMate 登录中心</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="page-wrap auth-layout">
+    <aside class="side-nav">
+      <div class="side-logo">S</div>
+      <div class="side-brand">
+        <strong>SpaceMate</strong>
+        <span>账号中心</span>
+      </div>
+
+      <nav class="side-menu">
+        <a class="side-menu-item" href="./index.html">
+          <span class="menu-icon">H</span>
+          <span>返回首页</span>
+        </a>
+      </nav>
+
+      <p class="side-footnote">登录后可直接预约座位</p>
+    </aside>
+
+    <div class="content-wrap">
+      <header class="hero-banner">
+        <div>
+          <h1>登录与注册</h1>
+          <p>支持验证码登录、密码登录、注册与密码重置。</p>
+        </div>
+      </header>
+
+      <main class="surface-board">
+        <article class="panel-card">
+          <h2>当前会话</h2>
+          <div id="sessionStatus" class="muted">未登录</div>
+          <div class="toolbar compact-toolbar">
+            <button id="queryMeBtn" class="btn btn-ghost" type="button">查询当前用户</button>
+            <button id="refreshTokenBtn" class="btn btn-ghost" type="button">刷新 Token</button>
+            <button id="logoutBtn" class="btn btn-danger" type="button">退出登录</button>
+          </div>
+        </article>
+
+        <article class="panel-card">
+          <nav id="authTabs" class="chip-tabs">
+            <button class="active" data-panel="login" type="button">登录</button>
+            <button data-panel="register" type="button">注册</button>
+            <button data-panel="reset" type="button">重置密码</button>
+          </nav>
+
+          <section id="panel-login" class="auth-panel">
+            <div class="form-grid">
+              <label>
+                <span>账号类型</span>
+                <select id="loginIdentifierType">
+                  <option value="PHONE">手机号</option>
+                  <option value="EMAIL">邮箱</option>
+                </select>
+              </label>
+              <label>
+                <span>账号</span>
+                <input id="loginIdentifier" placeholder="请输入手机号或邮箱" />
+              </label>
+              <label>
+                <span>登录方式</span>
+                <select id="loginMethod">
+                  <option value="CODE">验证码登录</option>
+                  <option value="PASSWORD">密码登录</option>
+                </select>
+              </label>
+              <div id="loginCodeWrap" class="inline-row">
+                <label>
+                  <span>验证码</span>
+                  <input id="loginCode" placeholder="请输入验证码" />
+                </label>
+                <button id="sendLoginCodeBtn" class="btn btn-ghost" type="button">发送验证码</button>
+              </div>
+              <label id="loginPasswordWrap" class="hidden">
+                <span>密码</span>
+                <input id="loginPassword" type="password" placeholder="请输入密码" />
+              </label>
+              <button id="loginSubmitBtn" class="btn" type="button">立即登录</button>
+            </div>
+          </section>
+
+          <section id="panel-register" class="auth-panel hidden">
+            <div class="form-grid">
+              <label>
+                <span>账号类型</span>
+                <select id="registerIdentifierType">
+                  <option value="PHONE">手机号</option>
+                  <option value="EMAIL">邮箱</option>
+                </select>
+              </label>
+              <label>
+                <span>账号</span>
+                <input id="registerIdentifier" placeholder="请输入手机号或邮箱" />
+              </label>
+              <div class="inline-row">
+                <label>
+                  <span>验证码</span>
+                  <input id="registerCode" placeholder="请输入验证码" />
+                </label>
+                <button id="sendRegisterCodeBtn" class="btn btn-ghost" type="button">发送验证码</button>
+              </div>
+              <label>
+                <span>密码（可选）</span>
+                <input id="registerPassword" type="password" placeholder="可留空" />
+              </label>
+              <label class="check-row">
+                <input id="registerAgreeTerms" type="checkbox" />
+                <span>我已阅读并同意服务协议</span>
+              </label>
+              <button id="registerSubmitBtn" class="btn" type="button">立即注册</button>
+            </div>
+          </section>
+
+          <section id="panel-reset" class="auth-panel hidden">
+            <div class="form-grid">
+              <label>
+                <span>账号类型</span>
+                <select id="resetIdentifierType">
+                  <option value="PHONE">手机号</option>
+                  <option value="EMAIL">邮箱</option>
+                </select>
+              </label>
+              <label>
+                <span>账号</span>
+                <input id="resetIdentifier" placeholder="请输入手机号或邮箱" />
+              </label>
+              <div class="inline-row">
+                <label>
+                  <span>验证码</span>
+                  <input id="resetCode" placeholder="请输入验证码" />
+                </label>
+                <button id="sendResetCodeBtn" class="btn btn-ghost" type="button">发送验证码</button>
+              </div>
+              <label>
+                <span>新密码</span>
+                <input id="resetPassword" type="password" placeholder="至少 8 位，包含字母和数字" />
+              </label>
+              <button id="resetSubmitBtn" class="btn" type="button">重置密码</button>
+            </div>
+          </section>
+        </article>
+      </main>
+    </div>
+  </div>
+
+  <div id="globalFeedback" class="feedback-bar hidden"></div>
+
+  <script src="./login.js"></script>
+</body>
+</html>

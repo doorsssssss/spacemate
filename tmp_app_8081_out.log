@@ -1,0 +1,32 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.4)
+
+2026-05-29T13:14:34.660+08:00  INFO 19096 --- [spacemate-admin] [           main] com.spacemate.SpaceMateApplication       : Starting SpaceMateApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 19096 (D:\SpaceMate\target\spacemate-admin-0.0.1-SNAPSHOT.jar started by 玲 in D:\SpaceMate)
+2026-05-29T13:14:34.662+08:00  INFO 19096 --- [spacemate-admin] [           main] com.spacemate.SpaceMateApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-05-29T13:14:35.424+08:00  INFO 19096 --- [spacemate-admin] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-05-29T13:14:35.427+08:00  INFO 19096 --- [spacemate-admin] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-05-29T13:14:35.454+08:00  INFO 19096 --- [spacemate-admin] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 13 ms. Found 0 Redis repository interfaces.
+2026-05-29T13:14:35.994+08:00  INFO 19096 --- [spacemate-admin] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8081 (http)
+2026-05-29T13:14:36.005+08:00  INFO 19096 --- [spacemate-admin] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-05-29T13:14:36.006+08:00  INFO 19096 --- [spacemate-admin] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.19]
+2026-05-29T13:14:36.038+08:00  INFO 19096 --- [spacemate-admin] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-05-29T13:14:36.039+08:00  INFO 19096 --- [spacemate-admin] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1324 ms
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.5 
+2026-05-29T13:14:36.266+08:00  INFO 19096 --- [spacemate-admin] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-29T13:14:36.407+08:00  INFO 19096 --- [spacemate-admin] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1e92c3b6
+2026-05-29T13:14:36.409+08:00  INFO 19096 --- [spacemate-admin] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-29T13:14:37.562+08:00  INFO 19096 --- [spacemate-admin] [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@24d7657b, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@6f428e6e, org.springframework.security.web.context.SecurityContextHolderFilter@126af200, org.springframework.security.web.header.HeaderWriterFilter@4a2d66e, org.springframework.web.filter.CorsFilter@72e49f6a, org.springframework.security.web.authentication.logout.LogoutFilter@1e50eb3f, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter@3245efdb, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@77d959f1, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@11c999da, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@2e4b5da1, org.springframework.security.web.session.SessionManagementFilter@2904bc56, org.springframework.security.web.access.ExceptionTranslationFilter@5c9e3d01, org.springframework.security.web.access.intercept.AuthorizationFilter@54e94de9]
+2026-05-29T13:14:37.788+08:00  INFO 19096 --- [spacemate-admin] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8081 (http) with context path ''
+2026-05-29T13:14:37.795+08:00  INFO 19096 --- [spacemate-admin] [           main] com.spacemate.SpaceMateApplication       : Started SpaceMateApplication in 3.467 seconds (process running for 3.844)
+2026-05-29T13:14:38.065+08:00  INFO 19096 --- [spacemate-admin] [nio-8081-exec-3] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-05-29T13:14:38.065+08:00  INFO 19096 --- [spacemate-admin] [nio-8081-exec-3] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-05-29T13:14:38.066+08:00  INFO 19096 --- [spacemate-admin] [nio-8081-exec-3] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms

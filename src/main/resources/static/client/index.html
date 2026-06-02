@@ -1,0 +1,123 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpaceMate 客户端</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="page-wrap">
+    <aside class="side-nav">
+      <div class="side-logo">S</div>
+      <div class="side-brand">
+        <strong>SpaceMate</strong>
+        <span>共享空间预约</span>
+      </div>
+
+      <nav id="mainTabs" class="side-menu">
+        <button class="side-menu-item active" data-tab="profile" type="button">
+          <span class="menu-icon">H</span>
+          <span>个人主页</span>
+        </button>
+        <button class="side-menu-item" data-tab="spaces" type="button">
+          <span class="menu-icon">S</span>
+          <span>空间查询</span>
+        </button>
+        <button class="side-menu-item" data-tab="bookings" type="button">
+          <span class="menu-icon">B</span>
+          <span>我的预约</span>
+        </button>
+      </nav>
+
+      <p class="side-footnote">让每一段时间都被更好利用</p>
+    </aside>
+
+    <div class="content-wrap">
+      <header class="hero-banner">
+        <div>
+          <h1>SpaceMate 客户端</h1>
+          <p>像挂号系统一样查看时段余量，快速完成空间预约。</p>
+        </div>
+        <div class="hero-actions">
+          <a id="topLoginLink" href="./login.html" class="btn btn-ghost">登录 / 注册</a>
+          <button id="topLogoutBtn" class="btn btn-danger hidden" type="button">退出登录</button>
+        </div>
+      </header>
+
+      <main class="surface-board">
+        <section id="panel-profile" class="tab-panel">
+          <article class="panel-card profile-hero">
+            <div>
+              <span id="authStateBadge" class="status-pill">未登录</span>
+              <h2 id="profileGreeting">欢迎来到 SpaceMate</h2>
+              <p id="authStatusLine" class="muted">当前未登录，你可以先浏览空间，再决定是否登录预约。</p>
+            </div>
+            <div class="hero-action-list">
+              <button id="profileLoginBtn" class="btn" type="button">去登录页</button>
+              <button id="profileMeBtn" class="btn btn-ghost" type="button">刷新用户信息</button>
+              <button id="profileLogoutBtn" class="btn btn-danger hidden" type="button">退出登录</button>
+            </div>
+          </article>
+
+          <div class="stats-row">
+            <article class="panel-card stat-card">
+              <p class="stat-label">空间总数</p>
+              <p id="metricSpaceCount" class="stat-value">-</p>
+            </article>
+            <article class="panel-card stat-card">
+              <p class="stat-label">可用空间</p>
+              <p id="metricActiveCount" class="stat-value">-</p>
+            </article>
+          </div>
+
+          <article class="panel-card">
+            <h3>当前用户信息</h3>
+            <div id="profileDetail" class="kv-list muted">未登录</div>
+          </article>
+        </section>
+
+        <section id="panel-spaces" class="tab-panel hidden">
+          <article class="panel-card">
+            <h2>空间查询</h2>
+            <p class="muted">选择一个空间进入详情页，按时段和座位完成预约。</p>
+            <div class="toolbar search-toolbar">
+              <input id="spaceKeywordInput" type="text" placeholder="按空间名称搜索" />
+              <span class="muted">当前默认展示全部空间（含停用）</span>
+              <button id="reloadSpaceBtn" class="btn btn-ghost" type="button">刷新列表</button>
+            </div>
+          </article>
+
+          <div id="spaceGrid" class="space-grid"></div>
+        </section>
+
+        <section id="panel-bookings" class="tab-panel hidden">
+          <article class="panel-card">
+            <h2>我的预约</h2>
+            <p class="muted">默认使用登录用户手机号查询，未登录也可手动输入手机号查询。</p>
+            <div class="toolbar booking-toolbar">
+              <input id="minePhoneInput" type="text" maxlength="11" placeholder="请输入手机号" />
+              <select id="mineStatusSelect">
+                <option value="">全部状态</option>
+                <option value="1">待使用</option>
+                <option value="2">已使用</option>
+                <option value="3">已取消</option>
+              </select>
+              <button id="loadMineBtn" class="btn" type="button">查询预约</button>
+            </div>
+          </article>
+
+          <article class="panel-card">
+            <h3>预约记录</h3>
+            <div id="bookingList" class="list-block muted">请先查询预约记录</div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="globalFeedback" class="feedback-bar hidden"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
