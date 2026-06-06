@@ -75,3 +75,40 @@ CREATE TABLE IF NOT EXISTS booking (
   INDEX idx_booking_space_date_del (space_id, start_at, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
+CREATE TABLE IF NOT EXISTS space_comment (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  space_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  parent_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  root_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  content VARCHAR(500) NOT NULL,
+  like_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  reply_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  status TINYINT NOT NULL DEFAULT 1,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  deleted_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_space_comment_space FOREIGN KEY (space_id) REFERENCES space(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_space_comment_user FOREIGN KEY (user_id) REFERENCES app_user(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  INDEX idx_space_comment_root_page (space_id, parent_id, status, deleted, created_at, id),
+  INDEX idx_space_comment_reply_tree (space_id, root_id, status, deleted, created_at, id),
+  INDEX idx_space_comment_user (user_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS space_comment_like (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  comment_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  liked TINYINT NOT NULL DEFAULT 1,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  deleted_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  CONSTRAINT uk_space_comment_like_user UNIQUE (comment_id, user_id, deleted),
+  CONSTRAINT fk_space_comment_like_comment FOREIGN KEY (comment_id) REFERENCES space_comment(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_space_comment_like_user FOREIGN KEY (user_id) REFERENCES app_user(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  INDEX idx_space_comment_like_user_liked (user_id, liked, deleted),
+  INDEX idx_space_comment_like_comment_liked (comment_id, liked, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

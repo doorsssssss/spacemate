@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpaceMate 共享空间管理平台</title>
+  <link rel="stylesheet" href="/client/styles.css" />
+</head>
+<body>
+  <div class="page-wrap">
+    <aside class="side-nav">
+      <div class="side-logo">S</div>
+      <div class="side-brand">
+        <strong>SpaceMate</strong>
+        <span>共享空间管理平台</span>
+      </div>
+
+      <nav class="side-menu">
+        <a class="side-menu-item active" href="/client/index.html">
+          <span class="menu-icon">C</span>
+          <span>客户端入口</span>
+        </a>
+        <a class="side-menu-item" href="/client/login.html">
+          <span class="menu-icon">L</span>
+          <span>登录 / 注册</span>
+        </a>
+        <a class="side-menu-item" href="/admin/login.html">
+          <span class="menu-icon">A</span>
+          <span>管理端入口</span>
+        </a>
+      </nav>
+
+      <p class="side-footnote">先浏览空间，再登录预约，管理端用于维护空间、座位与预约数据。</p>
+    </aside>
+
+    <div class="content-wrap">
+      <header class="hero-banner">
+        <div>
+          <h1>SpaceMate</h1>
+          <p>共享空间预约与管理平台。客户端用于浏览空间、查看时段、预约座位和发布评论，管理端用于维护空间与座位数据。</p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn" href="/client/index.html">进入客户端</a>
+          <a class="btn btn-ghost" href="/admin/login.html">进入管理端</a>
+        </div>
+      </header>
+
+      <main class="surface-board">
+        <section class="panel-card">
+          <h2>快速入口</h2>
+          <p class="muted">按照使用场景选择入口，客户端面向普通用户，管理端面向运营维护人员。</p>
+
+          <div class="space-grid">
+            <article class="card space-card">
+              <div class="space-head">
+                <h3>客户端首页</h3>
+                <span class="tag tag-ok">推荐</span>
+              </div>
+              <p class="muted">查看所有空间、进入详情页、选择时段和座位完成预约。</p>
+              <div class="space-actions">
+                <a class="btn" href="/client/index.html">打开首页</a>
+              </div>
+            </article>
+
+            <article class="card space-card">
+              <div class="space-head">
+                <h3>登录与注册</h3>
+                <span class="tag">账号中心</span>
+              </div>
+              <p class="muted">支持验证码登录、密码登录、注册和密码重置。</p>
+              <div class="space-actions">
+                <a class="btn btn-ghost" href="/client/login.html">前往登录页</a>
+              </div>
+            </article>
+
+            <article class="card space-card">
+              <div class="space-head">
+                <h3>管理端登录</h3>
+                <span class="tag tag-stop">管理员</span>
+              </div>
+              <p class="muted">登录后维护空间、座位、预约与基础数据。</p>
+              <div class="space-actions">
+                <a class="btn btn-ghost" href="/admin/login.html">进入管理端</a>
+              </div>
+            </article>
+
+            <article class="card space-card">
+              <div class="space-head">
+                <h3>客户端功能</h3>
+                <span class="tag tag-wait">说明</span>
+              </div>
+              <p class="muted">空间查询、预约、我的预约、评论、回复和点赞都在客户端完成。</p>
+              <div class="space-actions">
+                <a class="btn btn-ghost" href="/client/space.html?id=1">体验详情页</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <h2>使用建议</h2>
+          <div class="kv-list">
+            <div>
+              <span>客户端地址</span>
+              <strong>/client/index.html</strong>
+            </div>
+            <div>
+              <span>登录地址</span>
+              <strong>/client/login.html</strong>
+            </div>
+            <div>
+              <span>管理端地址</span>
+              <strong>/admin/login.html</strong>
+            </div>
+            <div>
+              <span>空间详情</span>
+              <strong>/client/space.html?id=1</strong>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

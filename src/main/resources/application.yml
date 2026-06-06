@@ -6,17 +6,17 @@ spring:
     name: spacemate-admin
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/spacemate?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: ${SPACEMATE_DB_URL:jdbc:mysql://localhost:3306/spacemate?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${SPACEMATE_DB_USERNAME:root}
+    password: ${SPACEMATE_DB_PASSWORD:}
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
   redis:
-    host: localhost
-    port: 6379
-    password:
-    database: 0
+    host: ${SPACEMATE_REDIS_HOST:localhost}
+    port: ${SPACEMATE_REDIS_PORT:6379}
+    password: ${SPACEMATE_REDIS_PASSWORD:}
+    database: ${SPACEMATE_REDIS_DATABASE:0}
     timeout: 5000ms
     lettuce:
       pool:
@@ -41,4 +41,4 @@ management:
 
 spacemate:
   security:
-    admin-token: 123456
+    admin-token: ${SPACEMATE_ADMIN_TOKEN:change-me}

@@ -4,9 +4,9 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 文档版本 | v1.1.0 |
+| 文档版本 | v1.2.0 |
 | 文档状态 | Draft（可直接指导开发） |
-| 最后更新 | 2026-05-17 |
+| 最后更新 | 2026-06-04 |
 | 作者 | 项目组 |
 
 ### 修订历史
@@ -15,6 +15,7 @@
 | --- | --- | --- | --- |
 | v1.0.0 | YYYY-MM-DD | 初版作者 | 初始设计文档 |
 | v1.1.0 | 2026-05-17 | 架构整理 | 规范化结构、补全接口示例、重构表结构与约束、补充鉴权/日志/部署方案 |
+| v1.2.0 | 2026-06-04 | 架构整理 | [精进] 补充空间评论、回复、点赞能力，同步更新数据库、接口与页面设计 |
 
 ---
 
@@ -29,7 +30,8 @@
 
 1. 提供管理端（Web 后台），供管理员管理空间、座位、预约、用户。
 2. 提供客户端（H5/小程序风格页面），供用户浏览座位、提交预约、查看自己的预约。
-3. 完成核心增删改查功能，不包含 AI 能力，但预留可扩展接口。
+3. [精进] 完成核心增删改查功能，并支持空间评论、回复、点赞等基础互动能力。
+4. 不包含 AI 能力，但预留可扩展接口。
 
 ### 1.3 后续扩展计划（AI 版）
 
@@ -37,7 +39,7 @@
 
 ### 1.4 范围说明
 
-1. In Scope：空间、座位、预约、用户、管理端和客户端页面、基础鉴权、健康检查。
+1. In Scope：空间、座位、预约、用户、空间评论、管理端和客户端页面、基础鉴权、健康检查。
 2. Out of Scope：支付、营销券、复杂会员体系、多门店多租户深度隔离、AI 运营分析。
 3. [假设] 当前为单机构部署，后续可升级为多租户。
 
@@ -84,6 +86,7 @@
 | 座位管理 | 查看/添加/编辑/删除座位（座位号、所属空间、插座、安静区） | 是 |
 | 预约管理 | 查看所有预约，按状态筛选，取消或标记已使用 | 是 |
 | 用户管理 | 查看用户、禁用/启用用户 | 是 |
+| 空间评论 | [精进][假设] 评论由客户端直接发布、回复、点赞；基础版暂不提供后台审核页 | 否 |
 | 统计看板 | 今日预约数、座位占用率（可选） | 否 |
 
 ### 3.2 客户端（普通用户）
@@ -94,6 +97,7 @@
 | 查看座位 | 按日期/时间段查询可用座位（可筛选插座/安静区） | 读 |
 | 创建预约 | 选择座位与时间段，提交预约 | 创建 |
 | 我的预约 | 查看/取消自己的预约（仅未开始） | 读、取消 |
+| 空间评论 | [精进] 查看空间评论，发布一级评论、回复评论、点赞/取消点赞 | 读、创建、更新 |
 | 用户信息 | 手机号登录（简化）与历史记录展示 | 读 |
 
 注：基础版支持“手机号验证码”或“手机号+会话”模式，后续可升级 Spring Security + JWT。
@@ -116,6 +120,11 @@
 space (1) ---- (N) seat
 seat  (1) ---- (N) booking
 app_user (1) -- (N) booking
+space (1) ---- (N) space_comment
+space_comment (1) ---- (N) space_comment（回复树）
+space_comment (1) ---- (N) space_comment_like
+app_user (1) -- (N) space_comment
+app_user (1) -- (N) space_comment_like
 ```
 
 ### 4.3 表结构总览
@@ -222,11 +231,65 @@ app_user (1) -- (N) booking
 2. `fk_booking_space`：`space_id -> space.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
 3. `fk_booking_seat`：`seat_id -> seat.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
 
+#### 4.3.5 `space_comment` 空间评论表
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | bigint unsigned | PK, auto | 评论 ID |
+| space_id | bigint unsigned | FK | 所属空间 |
+| user_id | bigint unsigned | FK | 评论用户 |
+| parent_id | bigint unsigned | not null default 0 | 父评论 ID，0 表示一级评论 |
+| root_id | bigint unsigned | not null default 0 | 根评论 ID，用于归类回复树 |
+| content | varchar(500) | not null | 评论内容 |
+| like_count | bigint unsigned | not null default 0 | 点赞数 |
+| reply_count | bigint unsigned | not null default 0 | 回复数 |
+| status | tinyint | not null default 1 | 1=正常,0=隐藏/停用 |
+| deleted | tinyint | not null default 0 | 软删除标记 |
+| deleted_at | datetime(3) | null | 删除时间 |
+| created_at | datetime(3) | not null default current_timestamp(3) | 创建时间 |
+| updated_at | datetime(3) | not null default current_timestamp(3) on update current_timestamp(3) | 更新时间 |
+
+[精进] 索引建议：
+
+1. `idx_space_comment_root_page (space_id, parent_id, status, deleted, created_at, id)`
+2. `idx_space_comment_reply_tree (space_id, root_id, status, deleted, created_at, id)`
+3. `idx_space_comment_user (user_id, deleted)`
+
+[精进] 外键：
+
+1. `fk_space_comment_space`：`space_id -> space.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
+2. `fk_space_comment_user`：`user_id -> app_user.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
+
+#### 4.3.6 `space_comment_like` 空间评论点赞表
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | bigint unsigned | PK, auto | 点赞记录 ID |
+| comment_id | bigint unsigned | FK | 评论 ID |
+| user_id | bigint unsigned | FK | 点赞用户 |
+| liked | tinyint | not null default 1 | 1=已点赞,0=已取消 |
+| deleted | tinyint | not null default 0 | 软删除标记 |
+| deleted_at | datetime(3) | null | 删除时间 |
+| created_at | datetime(3) | not null default current_timestamp(3) | 创建时间 |
+| updated_at | datetime(3) | not null default current_timestamp(3) on update current_timestamp(3) | 更新时间 |
+
+[精进] 索引建议：
+
+1. `uk_space_comment_like_user (comment_id, user_id, deleted)`
+2. `idx_space_comment_like_user_liked (user_id, liked, deleted)`
+3. `idx_space_comment_like_comment_liked (comment_id, liked, deleted)`
+
+[精进] 外键：
+
+1. `fk_space_comment_like_comment`：`comment_id -> space_comment.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
+2. `fk_space_comment_like_user`：`user_id -> app_user.id`，`ON UPDATE CASCADE ON DELETE RESTRICT`
+
 ### 4.4 级联行为与删除策略（避免后续大改）
 
 1. 删除空间：不物理删除，执行软删除事务。同步将该空间座位软删除，并取消未来未开始预约（状态改为已取消）。
 2. 删除座位：不物理删除，执行软删除并取消未来未开始预约。
-3. 删除用户：原则上不删，仅禁用；若软删除，保留历史预约用于审计。
+3. [精进] 评论建议默认保留历史记录，仅通过状态与软删除控制前端展示，避免用户讨论内容随空间/座位调整被误删。
+4. 删除用户：原则上不删，仅禁用；若软删除，保留历史预约与评论记录用于审计。
 
 ### 4.5 推荐 DDL（可直接执行）
 
@@ -518,13 +581,19 @@ X-Admin-Token: ${ADMIN_TOKEN}
 2. 可筛选：有插座、安静区。
 3. 返回可用座位列表并支持立即预约。
 
-### 7.3 预约提交页
+### 7.3 空间评论区
+
+1. [精进] 空间详情页底部展示评论区，支持查看评论和回复。
+2. [精进] 登录用户或已绑定手机号的用户可发布一级评论、回复评论、点赞/取消点赞。
+3. [假设] 评论仅支持纯文本，不支持图片、富文本和附件，以降低复杂度与 XSS 风险。
+
+### 7.4 预约提交页
 
 1. 填写手机号。
 2. 确认座位与时间段。
 3. 提交后返回预约单号与确认码。
 
-### 7.4 我的预约页
+### 7.5 我的预约页
 
 1. 展示当前用户预约列表。
 2. 未开始预约支持取消。
@@ -568,7 +637,7 @@ X-Admin-Token: ${ADMIN_TOKEN}
 | --- | --- | --- | --- |
 | 第 1 周 | 3 天 | 环境搭建、数据库建表、MyBatis-Plus 配置 | 服务可连库 |
 | 第 2 周 | 4 天 | 管理端空间/座位/用户 CRUD | 管理端 API 可用 |
-| 第 3 周 | 3 天 | 客户端预约创建/查询/取消 | 客户端 API 可用 |
+| 第 3 周 | 3 天 | 客户端预约创建/查询/取消、空间评论/回复/点赞 | 客户端 API 可用 |
 | 第 4 周 | 4 天 | 管理端页面开发 | 管理后台可操作 |
 | 第 5 周 | 3 天 | 客户端 H5 页面开发 | 移动端可使用 |
 | 第 6 周 | 2 天 | 联调、测试、修复、文档完善 | 可演示版本 |
@@ -603,4 +672,3 @@ AI 功能可在基础版完成后追加 2-3 周。
 1. 先执行第 4 章 DDL 建库。
 2. 先实现 `GET /api/spaces` 和 `POST /api/bookings` 两个主链路接口。
 3. 同步落地全局异常处理和统一日志，避免后期返工。
-

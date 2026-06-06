@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
@@ -65,6 +65,30 @@
           <h2>该时段可用座位</h2>
           <p id="selectedSlotText" class="muted">请先点击上面的可预约时段</p>
           <div id="seatList" class="list-block muted">暂无数据</div>
+        </article>
+
+        <article class="panel-card comment-panel">
+          <div class="comment-headline">
+            <div>
+              <h2>空间评论</h2>
+              <p class="muted">可以分享使用体验，也可以回复其他用户的问题。</p>
+            </div>
+            <div class="comment-tools">
+              <span id="commentCountText" class="tag">0 条讨论</span>
+              <button id="commentRefreshBtn" class="btn btn-ghost" type="button">刷新评论</button>
+            </div>
+          </div>
+
+          <div class="comment-compose">
+            <div id="replyTarget" class="reply-target hidden" data-parent-id="0"></div>
+            <textarea id="commentContent" maxlength="500" placeholder="分享你对这个空间的体验、安静程度、插座情况..."></textarea>
+            <div class="comment-compose-actions">
+              <span class="muted">最多 500 字，评论和点赞需要手机号身份。</span>
+              <button id="commentSubmitBtn" class="btn" type="button">发布评论</button>
+            </div>
+          </div>
+
+          <div id="commentList" class="comment-list muted">评论加载中...</div>
         </article>
       </main>
     </div>

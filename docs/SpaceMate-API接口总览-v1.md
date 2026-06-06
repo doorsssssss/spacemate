@@ -10,6 +10,10 @@
   - 公开接口无需鉴权
   - 用户接口需 `Authorization: Bearer <access_token>` 或基础版 `X-User-Phone`
   - 管理接口需 `X-Admin-Token: <token>`（基础版）或管理员 JWT
+- 请求头约定：
+  - `[精进] X-User-Phone`：客户端基础版身份标识，适用于预约、评论、点赞等需要区分用户的接口
+  - `[精进] X-Admin-Token`：管理端基础版固定令牌，仅用于后台接口
+  - `[精进] Authorization: Bearer <token>`：预留给后续 JWT 升级
 - 统一响应结构：
 
 ```json
@@ -51,6 +55,11 @@
 | 404 | 资源不存在 | 空间/座位/预约不存在 |
 | 409 | 业务冲突 | 座位时间冲突、重复提交 |
 | 500 | 服务器异常 | 未捕获系统异常 |
+
+[精进] 说明：
+
+1. 对于评论发布、回复、点赞接口，如果未提供 `X-User-Phone` 且未携带登录态，应返回 `401`。
+2. 对于普通查询接口，若未登录，评论状态字段 `liked` 默认返回 `false`。
 
 ---
 
@@ -176,6 +185,88 @@
   - `status` `int`
 - 示例：`curl "https://host/api/v1/spaces/1"`
 
+### 3. 空间评论列表
+
+- 方法：`GET`
+- 路径：`/api/v1/spaces/{spaceId}/comments`
+- 查询参数：
+  - `page` `int`（默认 1）
+  - `size` `int`（默认 20，最大 100）
+- 请求头：
+  - `X-User-Phone`：可选，用于返回 `liked` 状态
+- 响应：`object`
+  - `items` `CommentItem[]`
+  - `page` `int`
+  - `size` `int`
+  - `total` `long`
+- 数组元素结构：`CommentItem`
+  - `id` `long`
+  - `spaceId` `long`
+  - `userId` `long`
+  - `nickname` `string`
+  - `maskedPhone` `string`
+  - `parentId` `long`
+  - `rootId` `long`
+  - `content` `string`
+  - `likeCount` `long`
+  - `replyCount` `long`
+  - `liked` `boolean`
+  - `createdAt` `string`
+  - `replies` `CommentItem[]`
+- 示例：
+
+```http
+GET /api/v1/spaces/1/comments?page=1&size=20 HTTP/1.1
+Host: localhost:8080
+X-User-Phone: 13800000000
+```
+
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 1001,
+        "spaceId": 1,
+        "userId": 11,
+        "nickname": "用户-0000",
+        "maskedPhone": "138****0000",
+        "parentId": 0,
+        "rootId": 0,
+        "content": "这个空间很安静，插座也够用。",
+        "likeCount": 3,
+        "replyCount": 1,
+        "liked": false,
+        "createdAt": "2026-06-04T18:00:00",
+        "replies": [
+          {
+            "id": 1002,
+            "spaceId": 1,
+            "userId": 12,
+            "nickname": "用户-8888",
+            "maskedPhone": "139****8888",
+            "parentId": 1001,
+            "rootId": 1001,
+            "content": "我也觉得环境不错。",
+            "likeCount": 1,
+            "replyCount": 0,
+            "liked": true,
+            "createdAt": "2026-06-04T18:10:00",
+            "replies": []
+          }
+        ]
+      }
+    ],
+    "page": 1,
+    "size": 20,
+    "total": 1
+  },
+  "traceId": "c9f8d2a1b3"
+}
+```
+
 ---
 
 ## 座位（公开）
@@ -218,6 +309,108 @@
   - `isQuiet` `boolean`
   - `status` `int`
 - 示例：`curl "https://host/api/v1/seats/101"`
+
+---
+
+## 空间评论（客户端）
+
+[精进] 说明：
+
+1. 评论体系采用“一级评论 + 回复”的树形结构。
+2. 点赞采用独立点赞表，保证重复点击幂等。
+3. 评论默认不做后台审核页，若后续要加审核，建议在 `space_comment.status` 上扩展状态流转。
+
+### 1. 发布评论或回复
+
+- 方法：`POST`
+- 路径：`/api/v1/spaces/{spaceId}/comments`
+- 请求头：
+  - `X-User-Phone`：必填，基础版身份标识
+- 请求体：
+
+```json
+{
+  "parentId": 0,
+  "content": "这个空间很适合自习。"
+}
+```
+
+- 说明：
+  - `parentId=0` 表示一级评论
+  - `parentId>0` 表示回复某条评论
+- 响应：`object`
+  - `id` `long`
+  - `spaceId` `long`
+  - `userId` `long`
+  - `nickname` `string`
+  - `maskedPhone` `string`
+  - `parentId` `long`
+  - `rootId` `long`
+  - `content` `string`
+  - `likeCount` `long`
+  - `replyCount` `long`
+  - `liked` `boolean`
+  - `createdAt` `string`
+  - `replies` `array`
+- 示例：
+
+```http
+POST /api/v1/spaces/1/comments HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+X-User-Phone: 13800000000
+
+{
+  "parentId": 0,
+  "content": "这个空间很适合自习。"
+}
+```
+
+### 2. 评论点赞
+
+- 方法：`POST`
+- 路径：`/api/v1/comments/{commentId}/like`
+- 请求头：
+  - `X-User-Phone`：必填
+- 响应：`object`
+  - `commentId` `long`
+  - `liked` `boolean`
+  - `changed` `boolean`
+  - `likeCount` `long`
+- 示例：
+
+```http
+POST /api/v1/comments/1001/like HTTP/1.1
+Host: localhost:8080
+X-User-Phone: 13800000000
+```
+
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "commentId": 1001,
+    "liked": true,
+    "changed": true,
+    "likeCount": 4
+  },
+  "traceId": "9f11c7e6ab"
+}
+```
+
+### 3. 取消评论点赞
+
+- 方法：`DELETE`
+- 路径：`/api/v1/comments/{commentId}/like`
+- 请求头：
+  - `X-User-Phone`：必填
+- 响应：`object`
+  - `commentId` `long`
+  - `liked` `boolean`
+  - `changed` `boolean`
+  - `likeCount` `long`
+- 示例：`curl -X DELETE "https://host/api/v1/comments/1001/like" -H "X-User-Phone: 13800000000"`
 
 ---
 
@@ -575,4 +768,3 @@
 1. 先实现公开接口：`/spaces`、`/seats/available`
 2. 再实现核心链路：`POST /bookings`、`GET /bookings/mine`、`DELETE /bookings/{id}`
 3. 最后补管理端：`/admin/spaces`、`/admin/seats`、`/admin/bookings`、`/admin/users`
-

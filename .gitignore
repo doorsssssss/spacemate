@@ -1,0 +1,19 @@
+# Maven build output
+target/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+
+# Local helper/checkouts
+_ext/
+.claude/
+
+# Logs and temporary files
+*.log
+tmp_*
+
+# OS generated files
+.DS_Store
+Thumbs.db

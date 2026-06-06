@@ -1,4 +1,4 @@
-﻿const AUTH_STORAGE_KEY = "spacemate_client_auth";
+const AUTH_STORAGE_KEY = "spacemate_client_auth";
 const PHONE_STORAGE_KEY = "spacemate_user_phone";
 
 const pageState = {
@@ -7,7 +7,10 @@ const pageState = {
   space: null,
   selectedDate: null,
   selectedSlot: null,
-  slots: []
+  slots: [],
+  commentsPage: 1,
+  commentsSize: 20,
+  comments: []
 };
 
 function esc(input) {
@@ -65,7 +68,7 @@ function getAccessToken() {
   return pageState.auth?.token?.accessToken || "";
 }
 
-function getBusinessPhoneOrAsk() {
+function getBusinessPhoneOrAsk(actionText = "操作") {
   const phoneFromUser = pageState.auth?.user?.phone || "";
   const phoneFromCache = localStorage.getItem(PHONE_STORAGE_KEY) || "";
   const candidate = isValidPhone(phoneFromUser) ? phoneFromUser : phoneFromCache;
@@ -74,13 +77,21 @@ function getBusinessPhoneOrAsk() {
     return candidate;
   }
 
-  const input = (window.prompt("预约需要手机号，请输入 11 位手机号") || "").trim();
+  const input = (window.prompt(`${actionText}需要手机号，请输入 11 位手机号`) || "").trim();
   if (!isValidPhone(input)) {
-    throw new Error("手机号格式不正确，无法预约");
+    throw new Error("手机号格式不正确，无法继续操作");
   }
 
   localStorage.setItem(PHONE_STORAGE_KEY, input);
   return input;
+}
+
+function getOptionalPhone() {
+  const phoneFromUser = pageState.auth?.user?.phone || "";
+  const phoneFromCache = localStorage.getItem(PHONE_STORAGE_KEY) || "";
+  if (isValidPhone(phoneFromUser)) return phoneFromUser;
+  if (isValidPhone(phoneFromCache)) return phoneFromCache;
+  return "";
 }
 
 async function parseJsonSafe(response) {
@@ -139,6 +150,11 @@ function formatDate(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function formatDateTime(value) {
+  if (!value) return "刚刚";
+  return String(value).replace("T", " ").slice(0, 16);
+}
+
 function parseTimeToMinutes(value) {
   const [hour, minute] = String(value || "00:00").split(":").map(Number);
   if (Number.isNaN(hour) || Number.isNaN(minute)) {
@@ -183,7 +199,7 @@ async function loadSpaceDetail() {
   pageState.space = data;
 
   document.getElementById("spacePageTitle").textContent = data.name || "空间时段查询";
-  document.getElementById("spacePageSubTitle").textContent = "按当天时段查看剩余可预约座位";
+  document.getElementById("spacePageSubTitle").textContent = "按当天时段查看剩余可预约座位，也可以查看真实用户评论";
 
   document.getElementById("spaceInfo").innerHTML = `
     <div><span>空间名称</span><strong>${esc(data.name || "-")}</strong></div>
@@ -330,7 +346,7 @@ async function bookSeat(seatId) {
     throw new Error("请先选择时段");
   }
 
-  const phone = getBusinessPhoneOrAsk();
+  const phone = getBusinessPhoneOrAsk("预约");
   const payload = {
     seatId: Number(seatId),
     startAt: pageState.selectedSlot.startAt,
@@ -345,6 +361,133 @@ async function bookSeat(seatId) {
 
   showFeedback(`预约成功：${booking.bookingNo}（确认码 ${booking.confirmCode}）`, "success");
   await loadSlotAvailability();
+}
+
+async function loadComments() {
+  const phone = getOptionalPhone();
+  const qs = new URLSearchParams({
+    page: String(pageState.commentsPage),
+    size: String(pageState.commentsSize)
+  });
+  const headers = phone ? { "X-User-Phone": phone } : {};
+  const data = await requestApi(`/api/v1/spaces/${pageState.spaceId}/comments?${qs.toString()}`, { headers });
+  pageState.comments = data?.items || [];
+  renderComments(data?.total || 0);
+}
+
+function renderComments(total) {
+  const root = document.getElementById("commentList");
+  if (!root) return;
+
+  document.getElementById("commentCountText").textContent = `${total} 条讨论`;
+
+  if (!pageState.comments.length) {
+    root.innerHTML = "<div class=\"muted\">还没有评论，来做第一个分享体验的人吧。</div>";
+    return;
+  }
+
+  root.innerHTML = pageState.comments.map(renderComment).join("");
+}
+
+function renderComment(comment) {
+  const replies = comment.replies || [];
+  return `
+    <article class="comment-item">
+      <div class="comment-main">
+        <div class="comment-avatar">${esc((comment.nickname || "U").slice(0, 1))}</div>
+        <div class="comment-body">
+          <div class="comment-meta">
+            <strong>${esc(comment.nickname || "匿名用户")}</strong>
+            <span>${esc(comment.maskedPhone || "")}</span>
+            <span>${esc(formatDateTime(comment.createdAt))}</span>
+          </div>
+          <p>${esc(comment.content)}</p>
+          <div class="comment-actions">
+            <button class="text-btn ${comment.liked ? "text-btn-hot" : ""}" data-action="toggle-comment-like" data-comment-id="${comment.id}" data-liked="${comment.liked ? "1" : "0"}" type="button">
+              ${comment.liked ? "已点赞" : "点赞"} · ${comment.likeCount || 0}
+            </button>
+            <button class="text-btn" data-action="reply-comment" data-comment-id="${comment.id}" data-nickname="${esc(comment.nickname || "用户")}" type="button">回复</button>
+            <span class="muted">${comment.replyCount || replies.length || 0} 条回复</span>
+          </div>
+        </div>
+      </div>
+      ${replies.length ? `<div class="reply-list">${replies.map(renderReply).join("")}</div>` : ""}
+    </article>
+  `;
+}
+
+function renderReply(reply) {
+  return `
+    <article class="reply-item">
+      <div class="comment-meta">
+        <strong>${esc(reply.nickname || "匿名用户")}</strong>
+        <span>${esc(reply.maskedPhone || "")}</span>
+        <span>${esc(formatDateTime(reply.createdAt))}</span>
+      </div>
+      <p>${esc(reply.content)}</p>
+      <div class="comment-actions">
+        <button class="text-btn ${reply.liked ? "text-btn-hot" : ""}" data-action="toggle-comment-like" data-comment-id="${reply.id}" data-liked="${reply.liked ? "1" : "0"}" type="button">
+          ${reply.liked ? "已点赞" : "点赞"} · ${reply.likeCount || 0}
+        </button>
+        <button class="text-btn" data-action="reply-comment" data-comment-id="${reply.id}" data-nickname="${esc(reply.nickname || "用户")}" type="button">回复</button>
+      </div>
+    </article>
+  `;
+}
+
+async function submitComment(parentId = 0) {
+  const textarea = document.getElementById("commentContent");
+  const content = (textarea?.value || "").trim();
+  if (!content) {
+    throw new Error("评论内容不能为空");
+  }
+
+  const phone = getBusinessPhoneOrAsk(parentId ? "回复" : "评论");
+  await requestApi(`/api/v1/spaces/${pageState.spaceId}/comments`, {
+    method: "POST",
+    headers: { "X-User-Phone": phone },
+    body: {
+      parentId,
+      content
+    }
+  });
+
+  textarea.value = "";
+  clearReplyTarget();
+  showFeedback(parentId ? "回复成功" : "评论发布成功", "success");
+  await loadComments();
+}
+
+function setReplyTarget(commentId, nickname) {
+  const target = document.getElementById("replyTarget");
+  const content = document.getElementById("commentContent");
+  if (!target || !content) return;
+
+  target.dataset.parentId = String(commentId);
+  target.innerHTML = `正在回复 <strong>${esc(nickname)}</strong> <button class="text-btn" data-action="cancel-reply" type="button">取消</button>`;
+  target.classList.remove("hidden");
+  content.placeholder = `回复 ${nickname}...`;
+  content.focus();
+}
+
+function clearReplyTarget() {
+  const target = document.getElementById("replyTarget");
+  const content = document.getElementById("commentContent");
+  if (!target || !content) return;
+
+  target.dataset.parentId = "0";
+  target.textContent = "";
+  target.classList.add("hidden");
+  content.placeholder = "分享你对这个空间的体验、安静程度、插座情况...";
+}
+
+async function toggleCommentLike(commentId, liked) {
+  const phone = getBusinessPhoneOrAsk("点赞");
+  await requestApi(`/api/v1/comments/${commentId}/like`, {
+    method: liked ? "DELETE" : "POST",
+    headers: { "X-User-Phone": phone }
+  });
+  await loadComments();
 }
 
 async function logout() {
@@ -389,6 +532,35 @@ function bindEvents() {
     bookSeat(Number(button.dataset.seatId)).catch((error) => showFeedback(error.message, "error"));
   });
 
+  document.getElementById("commentSubmitBtn")?.addEventListener("click", () => {
+    const parentId = Number(document.getElementById("replyTarget")?.dataset.parentId || 0);
+    submitComment(parentId).catch((error) => showFeedback(error.message, "error"));
+  });
+
+  document.getElementById("commentRefreshBtn")?.addEventListener("click", () => {
+    loadComments().catch((error) => showFeedback(error.message, "error"));
+  });
+
+  document.getElementById("commentList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    if (button.dataset.action === "toggle-comment-like") {
+      toggleCommentLike(Number(button.dataset.commentId), button.dataset.liked === "1")
+        .catch((error) => showFeedback(error.message, "error"));
+    }
+
+    if (button.dataset.action === "reply-comment") {
+      setReplyTarget(Number(button.dataset.commentId), button.dataset.nickname || "用户");
+    }
+  });
+
+  document.getElementById("replyTarget")?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='cancel-reply']");
+    if (!button) return;
+    clearReplyTarget();
+  });
+
   document.getElementById("spaceLogoutBtn")?.addEventListener("click", () => {
     logout().catch((error) => showFeedback(error.message, "error"));
   });
@@ -417,7 +589,10 @@ async function boot() {
   bindEvents();
 
   await loadSpaceDetail();
-  await loadSlotAvailability();
+  await Promise.all([
+    loadSlotAvailability(),
+    loadComments()
+  ]);
 }
 
 boot().catch((error) => {
