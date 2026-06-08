@@ -1,11 +1,10 @@
 package com.spacemate.modules.auth.service;
 
 import com.spacemate.domain.entity.AppUser;
-
 import java.util.Optional;
 
 /**
- * 鐢ㄦ埛鏈嶅姟鎺ュ彛
+ * 用户服务接口。
  */
 public interface UserService {
     Optional<AppUser> findByPhone(String phone);
@@ -22,4 +21,3 @@ public interface UserService {
 
     void updatePassword(AppUser user);
 }
-

@@ -8,6 +8,7 @@ public interface ClientSpaceService {
 
     List<ClientSpaceResponse> list();
 
+
     ClientSpaceResponse detail(Long id);
 
     Space requireActiveSpace(Long id);

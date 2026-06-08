@@ -2,6 +2,9 @@ package com.spacemate.config;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.spacemate.common.api.PageResponse;
+import com.spacemate.modules.client.dto.response.ClientCommentResponse;
+import com.spacemate.modules.client.dto.response.ClientSeatResponse;
 import com.spacemate.modules.client.dto.response.ClientSpaceResponse;
 import java.time.Duration;
 import java.util.List;
@@ -61,6 +64,45 @@ public class CacheConfig {
         return Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterWrite(Duration.ofSeconds(60))
+            .build();
+    }
+
+    /**
+     * 客户端座位可预约结果的本地缓存。
+     *
+     * <p>这一层对应参考项目里的 L2，本地命中后可以直接返回，不再访问 Redis。</p>
+     */
+    @Bean("clientSeatAvailableCache")
+    public Cache<String, PageResponse<ClientSeatResponse>> clientSeatAvailableCache() {
+        return Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofSeconds(10))
+            .build();
+    }
+
+    /**
+     * 客户端座位详情的本地缓存。
+     *
+     * <p>座位详情访问频率高于普通管理端列表，适合先放一层 JVM 内缓存。</p>
+     */
+    @Bean("clientSeatDetailCache")
+    public Cache<String, ClientSeatResponse> clientSeatDetailCache() {
+        return Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofSeconds(30))
+            .build();
+    }
+
+    /**
+     * 客户端评论列表的本地缓存。
+     *
+     * <p>评论列表是典型读多写少页面，先命中本地缓存可以减少 Redis 和数据库压力。</p>
+     */
+    @Bean("clientCommentListCache")
+    public Cache<String, PageResponse<ClientCommentResponse>> clientCommentListCache() {
+        return Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofSeconds(20))
             .build();
     }
 }

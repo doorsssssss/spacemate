@@ -3,7 +3,10 @@ package com.spacemate.modules.client.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.spacemate.common.api.PageResponse;
+import com.spacemate.common.cache.CacheKeys;
+import com.spacemate.common.cache.HotKeyDetector;
 import com.spacemate.common.exception.BusinessException;
 import com.spacemate.domain.entity.AppUser;
 import com.spacemate.domain.entity.SpaceComment;
@@ -25,9 +28,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class ClientCommentServiceImpl implements ClientCommentService {
@@ -36,17 +44,29 @@ public class ClientCommentServiceImpl implements ClientCommentService {
     private final SpaceCommentLikeMapper likeMapper;
     private final AppUserMapper appUserMapper;
     private final ClientSpaceService clientSpaceService;
+    private final StringRedisTemplate redisTemplate;
+    private final Cache<String, PageResponse<ClientCommentResponse>> commentListCache;
+    private final HotKeyDetector hotKeyDetector;
+    private final ObjectMapper objectMapper;
 
     public ClientCommentServiceImpl(
         SpaceCommentMapper commentMapper,
         SpaceCommentLikeMapper likeMapper,
         AppUserMapper appUserMapper,
-        ClientSpaceService clientSpaceService
+        ClientSpaceService clientSpaceService,
+        StringRedisTemplate redisTemplate,
+        @Qualifier("clientCommentListCache") Cache<String, PageResponse<ClientCommentResponse>> commentListCache,
+        HotKeyDetector hotKeyDetector,
+        ObjectMapper objectMapper
     ) {
         this.commentMapper = commentMapper;
         this.likeMapper = likeMapper;
         this.appUserMapper = appUserMapper;
         this.clientSpaceService = clientSpaceService;
+        this.redisTemplate = redisTemplate;
+        this.commentListCache = commentListCache;
+        this.hotKeyDetector = hotKeyDetector;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -58,6 +78,20 @@ public class ClientCommentServiceImpl implements ClientCommentService {
     @Override
     public PageResponse<ClientCommentResponse> list(Long spaceId, String phone, long page, long size) {
         clientSpaceService.detail(spaceId);
+
+        String cacheKey = commentListCacheKey(spaceId, page, size);
+        hotKeyDetector.record(cacheKey);
+
+        PageResponse<ClientCommentResponse> localCached = commentListCache.getIfPresent(cacheKey);
+        if (localCached != null) {
+            return enrichLikedState(localCached, phone);
+        }
+
+        PageResponse<ClientCommentResponse> cached = readCommentListFromRedis(cacheKey);
+        if (cached != null) {
+            commentListCache.put(cacheKey, cached);
+            return enrichLikedState(cached, phone);
+        }
 
         Page<SpaceComment> pageResult = commentMapper.selectPage(
             new Page<>(page, size),
@@ -104,7 +138,11 @@ public class ClientCommentServiceImpl implements ClientCommentService {
             })
             .collect(Collectors.toList());
 
-        return new PageResponse<>(items, page, size, pageResult.getTotal());
+        PageResponse<ClientCommentResponse> result = new PageResponse<>(items, page, size, pageResult.getTotal());
+        PageResponse<ClientCommentResponse> publicResult = toPublicCommentPage(result);
+        writeCommentListToRedis(cacheKey, publicResult);
+        commentListCache.put(cacheKey, publicResult);
+        return result;
     }
 
     /**
@@ -154,6 +192,7 @@ public class ClientCommentServiceImpl implements ClientCommentService {
             );
         }
 
+        bumpCommentListVersion(spaceId);
         return toResponse(comment, user, false);
     }
 
@@ -183,6 +222,7 @@ public class ClientCommentServiceImpl implements ClientCommentService {
         if (changed) {
             incrementLikeCount(commentId, 1);
             comment.setLikeCount(safeCount(comment.getLikeCount()) + 1);
+            bumpCommentListVersion(comment.getSpaceId());
         }
 
         return new ClientCommentLikeResponse(commentId, true, changed, safeCount(comment.getLikeCount()));
@@ -207,6 +247,7 @@ public class ClientCommentServiceImpl implements ClientCommentService {
         if (changed) {
             incrementLikeCount(commentId, -1);
             comment.setLikeCount(Math.max(0L, safeCount(comment.getLikeCount()) - 1));
+            bumpCommentListVersion(comment.getSpaceId());
         }
 
         return new ClientCommentLikeResponse(commentId, false, changed, safeCount(comment.getLikeCount()));
@@ -302,6 +343,200 @@ public class ClientCommentServiceImpl implements ClientCommentService {
         response.setCreatedAt(comment.getCreatedAt());
         response.setReplies(Collections.emptyList());
         return response;
+    }
+
+    private String commentListCacheKey(Long spaceId, long page, long size) {
+        String version = currentCommentListVersion(spaceId);
+        return "spacemate:comment:list:" + spaceId + ":v" + version + ":page:" + page + ":size:" + size;
+    }
+
+    private String currentCommentListVersion(Long spaceId) {
+        String version = redisTemplate.opsForValue().get(CacheKeys.commentListVersion(spaceId));
+        return version == null ? "0" : version;
+    }
+
+    private void bumpCommentListVersion(Long spaceId) {
+        runAfterCommitOrNow(() -> {
+            try {
+                redisTemplate.opsForValue().increment(CacheKeys.commentListVersion(spaceId));
+            } catch (Exception ignored) {
+                // 评论列表缓存只是加速层，版本号递增失败时不影响主流程。
+            }
+        });
+    }
+
+    private void runAfterCommitOrNow(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    private PageResponse<ClientCommentResponse> toPublicCommentPage(PageResponse<ClientCommentResponse> source) {
+        List<ClientCommentResponse> publicItems = source.getItems().stream()
+            .map(this::toPublicComment)
+            .collect(Collectors.toList());
+        return new PageResponse<>(publicItems, source.getPage(), source.getSize(), source.getTotal());
+    }
+
+    private ClientCommentResponse toPublicComment(ClientCommentResponse source) {
+        ClientCommentResponse response = new ClientCommentResponse();
+        response.setId(source.getId());
+        response.setSpaceId(source.getSpaceId());
+        response.setUserId(source.getUserId());
+        response.setNickname(source.getNickname());
+        response.setMaskedPhone(source.getMaskedPhone());
+        response.setParentId(source.getParentId());
+        response.setRootId(source.getRootId());
+        response.setContent(source.getContent());
+        response.setLikeCount(source.getLikeCount());
+        response.setReplyCount(source.getReplyCount());
+        response.setLiked(false);
+        response.setCreatedAt(source.getCreatedAt());
+        List<ClientCommentResponse> replies = source.getReplies() == null
+            ? Collections.emptyList()
+            : source.getReplies().stream().map(this::toPublicComment).collect(Collectors.toList());
+        response.setReplies(replies);
+        return response;
+    }
+
+    private PageResponse<ClientCommentResponse> enrichLikedState(PageResponse<ClientCommentResponse> source, String phone) {
+        PageResponse<ClientCommentResponse> copy = copyCommentPage(source);
+        if (!StringUtils.hasText(phone)) {
+            return copy;
+        }
+
+        List<ClientCommentResponse> allComments = flattenComments(copy.getItems());
+        Set<Long> likedCommentIds = buildLikedCommentIdsByResponses(phone, allComments);
+        applyLikedState(copy.getItems(), likedCommentIds);
+        return copy;
+    }
+
+    private PageResponse<ClientCommentResponse> copyCommentPage(PageResponse<ClientCommentResponse> source) {
+        if (source == null) {
+            return new PageResponse<>(Collections.emptyList(), 1, 0, 0);
+        }
+        return new PageResponse<>(copyCommentList(source.getItems()), source.getPage(), source.getSize(), source.getTotal());
+    }
+
+    private List<ClientCommentResponse> copyCommentList(List<ClientCommentResponse> comments) {
+        if (comments == null || comments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return comments.stream()
+            .map(this::copyComment)
+            .collect(Collectors.toList());
+    }
+
+    private ClientCommentResponse copyComment(ClientCommentResponse source) {
+        if (source == null) {
+            return null;
+        }
+
+        ClientCommentResponse response = new ClientCommentResponse();
+        response.setId(source.getId());
+        response.setSpaceId(source.getSpaceId());
+        response.setUserId(source.getUserId());
+        response.setNickname(source.getNickname());
+        response.setMaskedPhone(source.getMaskedPhone());
+        response.setParentId(source.getParentId());
+        response.setRootId(source.getRootId());
+        response.setContent(source.getContent());
+        response.setLikeCount(source.getLikeCount());
+        response.setReplyCount(source.getReplyCount());
+        response.setLiked(source.getLiked() != null && source.getLiked());
+        response.setCreatedAt(source.getCreatedAt());
+        response.setReplies(copyCommentList(source.getReplies()));
+        return response;
+    }
+
+    private List<ClientCommentResponse> flattenComments(List<ClientCommentResponse> comments) {
+        List<ClientCommentResponse> result = new ArrayList<>();
+        if (comments == null || comments.isEmpty()) {
+            return result;
+        }
+
+        for (ClientCommentResponse comment : comments) {
+            result.add(comment);
+            if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+                result.addAll(flattenComments(comment.getReplies()));
+            }
+        }
+        return result;
+    }
+
+    private Set<Long> buildLikedCommentIdsByResponses(String phone, List<ClientCommentResponse> comments) {
+        if (!StringUtils.hasText(phone) || !phone.matches("^1\\d{10}$")) {
+            return new HashSet<>();
+        }
+
+        AppUser user = appUserMapper.selectOne(new LambdaQueryWrapper<AppUser>().eq(AppUser::getPhone, phone));
+        if (user == null) {
+            return new HashSet<>();
+        }
+
+        List<Long> commentIds = comments.stream()
+            .map(ClientCommentResponse::getId)
+            .collect(Collectors.toList());
+        if (commentIds.isEmpty()) {
+            return new HashSet<>();
+        }
+
+        return likeMapper.selectList(new LambdaQueryWrapper<SpaceCommentLike>()
+                .eq(SpaceCommentLike::getUserId, user.getId())
+                .eq(SpaceCommentLike::getLiked, 1)
+                .in(SpaceCommentLike::getCommentId, commentIds))
+            .stream()
+            .map(SpaceCommentLike::getCommentId)
+            .collect(Collectors.toSet());
+    }
+
+    private void applyLikedState(List<ClientCommentResponse> comments, Set<Long> likedCommentIds) {
+        if (comments == null || comments.isEmpty()) {
+            return;
+        }
+
+        for (ClientCommentResponse comment : comments) {
+            comment.setLiked(likedCommentIds.contains(comment.getId()));
+            applyLikedState(comment.getReplies(), likedCommentIds);
+        }
+    }
+
+    private PageResponse<ClientCommentResponse> readCommentListFromRedis(String cacheKey) {
+        String cached = redisTemplate.opsForValue().get(cacheKey);
+        if (!StringUtils.hasText(cached)) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(
+                cached,
+                new com.fasterxml.jackson.core.type.TypeReference<PageResponse<ClientCommentResponse>>() {
+                }
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void writeCommentListToRedis(String cacheKey, PageResponse<ClientCommentResponse> result) {
+        try {
+            redisTemplate.opsForValue().set(
+                cacheKey,
+                objectMapper.writeValueAsString(result),
+                hotKeyDetector.ttlDuration(30, 120, cacheKey)
+            );
+        } catch (Exception ignored) {
+            // 写缓存失败不影响评论列表返回。
+        }
     }
 
     private String normalizeContent(String content) {

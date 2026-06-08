@@ -23,9 +23,8 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         }
         String token = request.getHeader("X-Admin-Token");
         if (!StringUtils.hasText(token) || !token.equals(adminSecurityProperties.getAdminToken())) {
-            throw new BusinessException(401, "缁狅紕鎮婇崨妯绘弓閹哄牊娼?");
+            throw new BusinessException(401, "管理端 Token 无效");
         }
         return true;
     }
 }
-

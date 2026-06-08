@@ -2,12 +2,8 @@ package com.spacemate.modules.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.spacemate.common.exception.BusinessException;
 import com.spacemate.common.api.PageResponse;
-import com.spacemate.modules.admin.dto.request.AdminUpdateBookingStatusRequest;
-import com.spacemate.modules.admin.dto.response.AdminBookingResponse;
-import com.spacemate.modules.admin.dto.response.AdminDeleteResultResponse;
-import com.spacemate.modules.admin.dto.response.AdminUpdateResultResponse;
+import com.spacemate.common.exception.BusinessException;
 import com.spacemate.domain.entity.AppUser;
 import com.spacemate.domain.entity.Booking;
 import com.spacemate.domain.entity.Seat;
@@ -16,6 +12,11 @@ import com.spacemate.infrastructure.persistence.mapper.AppUserMapper;
 import com.spacemate.infrastructure.persistence.mapper.BookingMapper;
 import com.spacemate.infrastructure.persistence.mapper.SeatMapper;
 import com.spacemate.infrastructure.persistence.mapper.SpaceMapper;
+import com.spacemate.modules.admin.dto.request.AdminUpdateBookingStatusRequest;
+import com.spacemate.modules.admin.dto.response.AdminBookingResponse;
+import com.spacemate.modules.admin.dto.response.AdminDeleteResultResponse;
+import com.spacemate.modules.admin.dto.response.AdminUpdateResultResponse;
+import com.spacemate.modules.admin.service.AdminBookingService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -23,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.spacemate.modules.admin.service.AdminBookingService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -94,10 +93,10 @@ public class AdminBookingServiceImpl implements AdminBookingService {
     public AdminUpdateResultResponse updateStatus(Long id, AdminUpdateBookingStatusRequest request) {
         Booking booking = requireById(id);
         if (booking.getStatus() != 1 && request.getStatus() == 2) {
-            throw new BusinessException(409, "浠呭緟浣跨敤棰勭害鍙爣璁颁负宸蹭娇鐢?");
+            throw new BusinessException(409, "仅待使用预约可以标记为已使用");
         }
         if (booking.getStatus() == 3) {
-            throw new BusinessException(409, "宸插彇娑堥绾︿笉鍙彉鏇寸姸鎬?");
+            throw new BusinessException(409, "已取消预约不能变更状态");
         }
         booking.setStatus(request.getStatus());
         if (request.getStatus() == 3) {
@@ -114,7 +113,7 @@ public class AdminBookingServiceImpl implements AdminBookingService {
         booking.setStatus(3);
         booking.setDeletedAt(LocalDateTime.now());
         if (!StringUtils.hasText(booking.getCancelReason())) {
-            booking.setCancelReason("绠＄悊鍛樺垹闄?");
+            booking.setCancelReason("管理员删除");
         }
         int rows = bookingMapper.updateById(booking);
         return new AdminDeleteResultResponse(id, rows > 0);
@@ -131,7 +130,7 @@ public class AdminBookingServiceImpl implements AdminBookingService {
     public Booking requireById(Long id) {
         Booking booking = bookingMapper.selectById(id);
         if (booking == null) {
-            throw new BusinessException(404, "棰勭害涓嶅瓨鍦?");
+            throw new BusinessException(404, "预约不存在");
         }
         return booking;
     }
@@ -201,6 +200,3 @@ public class AdminBookingServiceImpl implements AdminBookingService {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 }
-
-
-

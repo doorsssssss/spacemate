@@ -3,20 +3,18 @@ package com.spacemate.infrastructure.verification;
 import com.spacemate.domain.enums.VerificationScene;
 
 /**
- * 楠岃瘉鐮佸彂閫佸櫒鎺ュ彛銆?
- * <p>
- * 鎶借薄鐪熷疄鍙戦€佽涓猴紙鐭俊/閭欢/绔欏唴锛夛紝鏀寔涓嶅悓鍦烘櫙涓庤处鍙锋爣璇嗐€?
- * 榛樿瀹炵幇鍙负鏃ュ織杈撳嚭锛岀敓浜х幆澧冨彲鏇挎崲涓虹涓夋柟鏈嶅姟闆嗘垚銆?
+ * 验证码发送接口。
+ *
+ * 基础版项目使用日志打印验证码，后续可以替换为短信、邮箱或站内信发送实现。
  */
 public interface CodeSender {
     /**
-     * 鍙戦€侀獙璇佺爜鍒版寚瀹氭爣璇嗐€?
+     * 发送验证码。
      *
-     * @param scene         楠岃瘉鐮佸満鏅紙REGISTER/LOGIN/RESET_PASSWORD锛夈€?
-     * @param identifier    鏍囪瘑锛堟墜鏈哄彿鎴栭偖绠憋級銆?
-     * @param code          楠岃瘉鐮佸唴瀹广€?
-     * @param expireMinutes 楠岃瘉鐮佹湁鏁堟湡锛堝垎閽燂級銆?
+     * @param scene 验证码场景。
+     * @param identifier 接收验证码的账号，如手机号或邮箱。
+     * @param code 验证码。
+     * @param expireMinutes 过期分钟数。
      */
     void sendCode(VerificationScene scene, String identifier, String code, int expireMinutes);
 }
-

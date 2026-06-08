@@ -1,6 +1,7 @@
 package com.spacemate.common.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.spacemate.modules.client.dto.response.ClientSeatResponse;
 import com.spacemate.modules.client.dto.response.ClientSpaceResponse;
 import java.util.List;
 import org.slf4j.Logger;
@@ -33,15 +34,39 @@ public class CacheInvalidationService {
     private final StringRedisTemplate redis;
     private final Cache<String, List<ClientSpaceResponse>> clientSpaceListCache;
     private final Cache<Long, ClientSpaceResponse> clientSpaceDetailCache;
+    private final Cache<String, ClientSeatResponse> clientSeatDetailCache;
 
     public CacheInvalidationService(
         StringRedisTemplate redis,
         @Qualifier("clientSpaceListCache") Cache<String, List<ClientSpaceResponse>> clientSpaceListCache,
-        @Qualifier("clientSpaceDetailCache") Cache<Long, ClientSpaceResponse> clientSpaceDetailCache
+        @Qualifier("clientSpaceDetailCache") Cache<Long, ClientSpaceResponse> clientSpaceDetailCache,
+        @Qualifier("clientSeatDetailCache") Cache<String, ClientSeatResponse> clientSeatDetailCache
     ) {
         this.redis = redis;
         this.clientSpaceListCache = clientSpaceListCache;
         this.clientSpaceDetailCache = clientSpaceDetailCache;
+        this.clientSeatDetailCache = clientSeatDetailCache;
+    }
+
+    /**
+     * 座位详情缓存目前是客户端读取路径中的一个小加速层。
+     *
+     * <p>座位被管理员修改、删除后，详情缓存也要同步清掉，避免前端继续看到旧座位信息。</p>
+     */
+    public void invalidateSeatDetail(Long seatId) {
+        if (seatId == null) {
+            return;
+        }
+
+        runAfterCommitOrNow(() -> {
+            try {
+                clientSeatDetailCache.invalidate("spacemate:seat:detail:" + seatId);
+                redis.delete("spacemate:seat:detail:" + seatId);
+                log.info("cache.invalidate seatDetail seatId={}", seatId);
+            } catch (Exception e) {
+                log.warn("cache.invalidate seatDetail failed seatId={}", seatId, e);
+            }
+        });
     }
 
     /**

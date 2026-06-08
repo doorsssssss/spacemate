@@ -3,8 +3,10 @@ package com.spacemate.modules.client.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.spacemate.common.api.PageResponse;
 import com.spacemate.common.cache.CacheKeys;
+import com.spacemate.common.cache.HotKeyDetector;
 import com.spacemate.common.exception.BusinessException;
 import com.spacemate.domain.entity.Booking;
 import com.spacemate.domain.entity.Seat;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -38,25 +41,38 @@ public class ClientSeatServiceImpl implements ClientSeatService {
      * 又不会让旧数据在前端停留太久。</p>
      */
     private static final Duration SEAT_AVAILABLE_TTL = Duration.ofSeconds(5);
+    private static final int AVAILABLE_REDIS_BASE_TTL_SECONDS = 5;
+    private static final int AVAILABLE_REDIS_MAX_TTL_SECONDS = 20;
+    private static final int DETAIL_REDIS_BASE_TTL_SECONDS = 30;
+    private static final int DETAIL_REDIS_MAX_TTL_SECONDS = 60;
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final Cache<String, PageResponse<ClientSeatResponse>> availableCache;
+    private final Cache<String, ClientSeatResponse> detailCache;
     private final SeatMapper seatMapper;
     private final BookingMapper bookingMapper;
     private final ClientSpaceService clientSpaceService;
+    private final HotKeyDetector hotKeyDetector;
 
     public ClientSeatServiceImpl(
         StringRedisTemplate stringRedisTemplate,
         ObjectMapper objectMapper,
+        @Qualifier("clientSeatAvailableCache") Cache<String, PageResponse<ClientSeatResponse>> availableCache,
+        @Qualifier("clientSeatDetailCache") Cache<String, ClientSeatResponse> detailCache,
         SeatMapper seatMapper,
         BookingMapper bookingMapper,
-        ClientSpaceService clientSpaceService
+        ClientSpaceService clientSpaceService,
+        HotKeyDetector hotKeyDetector
     ) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = objectMapper;
+        this.availableCache = availableCache;
+        this.detailCache = detailCache;
         this.seatMapper = seatMapper;
         this.bookingMapper = bookingMapper;
         this.clientSpaceService = clientSpaceService;
+        this.hotKeyDetector = hotKeyDetector;
     }
 
     @Override
@@ -70,18 +86,18 @@ public class ClientSeatServiceImpl implements ClientSeatService {
         long size
     ) {
         if (startAt == null || endAt == null || !startAt.isBefore(endAt)) {
-            throw new BusinessException(400, "可预约时间范围不合法");
+            throw new BusinessException(400, "??????????");
         }
 
         /*
-         * 读取缓存前先校验空间状态。
+         * ?????????????
          *
-         * 这样可以避免管理员刚刚禁用或删除空间后，接口还从 Redis 里返回旧的可预约座位结果。
-         * 缓存只能用来加速合法业务读取，不能绕过当前最新的业务校验。
+         * ???????????????????????? Redis ?????????????
+         * ?????????????????????????????
          */
         clientSpaceService.requireActiveSpace(spaceId);
-
         String version = currentSeatAvailableVersion(spaceId);
+
         String cacheKey = CacheKeys.seatAvailable(
             spaceId,
             version,
@@ -92,9 +108,17 @@ public class ClientSeatServiceImpl implements ClientSeatService {
             page,
             size
         );
+        hotKeyDetector.record(cacheKey);
+
+        PageResponse<ClientSeatResponse> localCached = availableCache.getIfPresent(cacheKey);
+        if (localCached != null) {
+            log.info("seat.available source=local key={}", cacheKey);
+            return localCached;
+        }
 
         PageResponse<ClientSeatResponse> cached = readAvailableCache(cacheKey);
         if (cached != null) {
+            availableCache.put(cacheKey, cached);
             log.info("seat.available source=redis key={}", cacheKey);
             return cached;
         }
@@ -110,10 +134,10 @@ public class ClientSeatServiceImpl implements ClientSeatService {
         );
 
         writeAvailableCache(cacheKey, result);
+        availableCache.put(cacheKey, result);
         log.info("seat.available source=db key={}", cacheKey);
         return result;
     }
-
     /**
      * 从 MySQL 查询可预约座位。
      *
@@ -129,6 +153,7 @@ public class ClientSeatServiceImpl implements ClientSeatService {
         long page,
         long size
     ) {
+
         LambdaQueryWrapper<Seat> seatWrapper = new LambdaQueryWrapper<Seat>()
             .eq(Seat::getSpaceId, spaceId)
             .eq(Seat::getStatus, 1)
@@ -212,11 +237,23 @@ public class ClientSeatServiceImpl implements ClientSeatService {
         }
 
         try {
-            return objectMapper.readValue(
+            PageResponse<ClientSeatResponse> fullPage = objectMapper.readValue(
                 cached,
                 new TypeReference<PageResponse<ClientSeatResponse>>() {
                 }
             );
+            return fullPage;
+        } catch (Exception ignored) {
+            // ??????????????
+        }
+
+        try {
+            PageResponse<Long> skeleton = objectMapper.readValue(
+                cached,
+                new TypeReference<PageResponse<Long>>() {
+                }
+            );
+            return assembleAvailablePageFromSkeleton(skeleton);
         } catch (Exception e) {
             log.warn("seat.available cache read failed key={}", cacheKey, e);
             return null;
@@ -224,41 +261,172 @@ public class ClientSeatServiceImpl implements ClientSeatService {
     }
 
     /**
-     * 把可预约座位分页结果写入 Redis。
+     * ???????????? Redis?
      *
-     * <p>这里的缓存只是性能优化。如果 Redis 不可用或序列化失败，接口仍然返回数据库查询结果。</p>
+     * <p>Redis ??????????? ID ??????????????????????????????????</p>
      */
     private void writeAvailableCache(String cacheKey, PageResponse<ClientSeatResponse> result) {
         try {
-            String json = objectMapper.writeValueAsString(result);
-            stringRedisTemplate.opsForValue().set(cacheKey, json, SEAT_AVAILABLE_TTL);
+            List<Long> seatIds = result.getItems() == null
+                ? Collections.emptyList()
+                : result.getItems().stream().map(ClientSeatResponse::getId).collect(Collectors.toList());
+            PageResponse<Long> skeleton = new PageResponse<>(seatIds, result.getPage(), result.getSize(), result.getTotal());
+            stringRedisTemplate.opsForValue().set(
+                cacheKey,
+                objectMapper.writeValueAsString(skeleton),
+                hotKeyDetector.ttlDuration(
+                    AVAILABLE_REDIS_BASE_TTL_SECONDS,
+                    AVAILABLE_REDIS_MAX_TTL_SECONDS,
+                    cacheKey
+                )
+            );
         } catch (Exception e) {
             log.warn("seat.available cache write failed key={}", cacheKey, e);
         }
     }
 
-    @Override
-    public ClientSeatResponse detail(Long id) {
+    /**
+     * ?????????? ID ???????????
+     */
+    private PageResponse<ClientSeatResponse> assembleAvailablePageFromSkeleton(PageResponse<Long> skeleton) {
+        if (skeleton == null || skeleton.getItems() == null || skeleton.getItems().isEmpty()) {
+            return new PageResponse<>(
+                Collections.emptyList(),
+                skeleton == null ? 1 : skeleton.getPage(),
+                skeleton == null ? 0 : skeleton.getSize(),
+                skeleton == null ? 0 : skeleton.getTotal()
+            );
+        }
+
+        List<ClientSeatResponse> items = skeleton.getItems().stream()
+            .map(this::loadSeatResponse)
+            .filter(item -> item != null)
+            .collect(Collectors.toList());
+
+        return new PageResponse<>(items, skeleton.getPage(), skeleton.getSize(), skeleton.getTotal());
+    }
+
+    /**
+     * ????????????????? -> Redis -> ????
+     */
+    private ClientSeatResponse loadSeatResponse(Long id) {
+        if (id == null) {
+            return null;
+        }
+
+        String cacheKey = CacheKeys.seatDetail(id);
+
+        ClientSeatResponse localCached = detailCache.getIfPresent(cacheKey);
+        if (localCached != null) {
+            return localCached;
+        }
+
+        ClientSeatResponse cached = readDetailCache(cacheKey);
+        if (cached != null) {
+            detailCache.put(cacheKey, cached);
+            return cached;
+        }
+
         Seat seat = seatMapper.selectOne(new LambdaQueryWrapper<Seat>()
             .eq(Seat::getId, id)
             .eq(Seat::getStatus, 1));
         if (seat == null) {
-            throw new BusinessException(404, "座位不存在或已停用");
+            return null;
         }
-        return toResponse(seat);
+
+        ClientSeatResponse response = toResponse(seat);
+        writeDetailCache(cacheKey, response);
+        detailCache.put(cacheKey, response);
+        return response;
     }
 
+    /**
+     * ???????
+     */
+    @Override
+    public ClientSeatResponse detail(Long id) {
+        String cacheKey = CacheKeys.seatDetail(id);
+        hotKeyDetector.record(cacheKey);
+
+        ClientSeatResponse localCached = detailCache.getIfPresent(cacheKey);
+        if (localCached != null) {
+            log.info("seat.detail source=local key={}", cacheKey);
+            return localCached;
+        }
+
+        ClientSeatResponse cached = readDetailCache(cacheKey);
+        if (cached != null) {
+            detailCache.put(cacheKey, cached);
+            log.info("seat.detail source=redis key={}", cacheKey);
+            return cached;
+        }
+
+        Seat seat = seatMapper.selectOne(new LambdaQueryWrapper<Seat>()
+            .eq(Seat::getId, id)
+            .eq(Seat::getStatus, 1));
+        if (seat == null) {
+            throw new BusinessException(404, "?????????");
+        }
+        ClientSeatResponse response = toResponse(seat);
+        writeDetailCache(cacheKey, response);
+        detailCache.put(cacheKey, response);
+        log.info("seat.detail source=db key={}", cacheKey);
+        return response;
+    }
+
+    /**
+     * ? Redis ???????????
+     */
+    private ClientSeatResponse readDetailCache(String cacheKey) {
+        String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (cached == null) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(cached, ClientSeatResponse.class);
+        } catch (Exception e) {
+            log.warn("seat.detail cache read failed key={}", cacheKey, e);
+            return null;
+        }
+    }
+
+    /**
+     * ????????? Redis ???????? TTL?
+     */
+    private void writeDetailCache(String cacheKey, ClientSeatResponse response) {
+        try {
+            stringRedisTemplate.opsForValue().set(
+                cacheKey,
+                objectMapper.writeValueAsString(response),
+                hotKeyDetector.ttlDuration(
+                    DETAIL_REDIS_BASE_TTL_SECONDS,
+                    DETAIL_REDIS_MAX_TTL_SECONDS,
+                    cacheKey
+                )
+            );
+        } catch (Exception e) {
+            log.warn("seat.detail cache write failed key={}", cacheKey, e);
+        }
+    }
+
+    /**
+     * ?????????
+     */
     @Override
     public Seat requireActiveSeat(Long id) {
         Seat seat = seatMapper.selectOne(new LambdaQueryWrapper<Seat>()
             .eq(Seat::getId, id)
             .eq(Seat::getStatus, 1));
         if (seat == null) {
-            throw new BusinessException(404, "座位不存在或已停用");
+            throw new BusinessException(404, "?????????");
         }
         return seat;
     }
 
+    /**
+     * ?????? Seat ????? ClientSeatResponse ???
+     */
     private ClientSeatResponse toResponse(Seat seat) {
         ClientSeatResponse response = new ClientSeatResponse();
         BeanUtils.copyProperties(seat, response);

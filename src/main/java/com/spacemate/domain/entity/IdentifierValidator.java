@@ -11,23 +11,22 @@ public class IdentifierValidator {
     }
 
     /**
-     * 鏍￠獙鎵嬫満鍙锋牸寮忥紙涓浗澶ч檰 11 浣嶏紝浠?1 寮€澶达級銆?
+     * 校验中国大陆手机号格式。
      *
-     * @param phone 鎵嬫満鍙峰瓧绗︿覆銆?
-     * @return 鏄惁鍖归厤鎵嬫満鍙锋鍒欍€?
+     * @param phone 手机号字符串。
+     * @return 是否符合手机号格式。
      */
     public static boolean isValidPhone(String phone) {
         return phone != null && PHONE_PATTERN.matcher(phone).matches();
     }
 
     /**
-     * 鏍￠獙閭鏍煎紡锛堝ぇ灏忓啓涓嶆晱鎰燂級銆?
+     * 校验邮箱格式。
      *
-     * @param email 閭瀛楃涓层€?
-     * @return 鏄惁鍖归厤閭姝ｅ垯銆?
+     * @param email 邮箱字符串。
+     * @return 是否符合邮箱格式。
      */
     public static boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
+    }
 }
-}
-

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.spacemate.common.cache.CacheKeys;
+import com.spacemate.common.cache.HotKeyDetector;
 import com.spacemate.common.exception.BusinessException;
 import com.spacemate.domain.entity.Space;
 import com.spacemate.infrastructure.persistence.mapper.SpaceMapper;
@@ -29,29 +30,38 @@ public class ClientSpaceServiceImpl implements ClientSpaceService {
      */
     private static final Duration SPACE_LIST_TTL = Duration.ofSeconds(60);
     private static final Duration SPACE_DETAIL_TTL = Duration.ofSeconds(60);
+    private static final int SPACE_LIST_REDIS_BASE_TTL_SECONDS = 60;
+    private static final int SPACE_LIST_REDIS_MAX_TTL_SECONDS = 180;
+    private static final int SPACE_DETAIL_REDIS_BASE_TTL_SECONDS = 120;
+    private static final int SPACE_DETAIL_REDIS_MAX_TTL_SECONDS = 300;
 
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final Cache<String, List<ClientSpaceResponse>> spaceListCache;
     private final Cache<Long, ClientSpaceResponse> spaceDetailCache;
     private final SpaceMapper spaceMapper;
+    private final HotKeyDetector hotKeyDetector;
 
     public ClientSpaceServiceImpl(
         StringRedisTemplate redis,
         ObjectMapper objectMapper,
         @Qualifier("clientSpaceListCache") Cache<String, List<ClientSpaceResponse>> spaceListCache,
         @Qualifier("clientSpaceDetailCache") Cache<Long, ClientSpaceResponse> spaceDetailCache,
-        SpaceMapper spaceMapper
+        SpaceMapper spaceMapper,
+        HotKeyDetector hotKeyDetector
     ) {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.spaceListCache = spaceListCache;
         this.spaceDetailCache = spaceDetailCache;
         this.spaceMapper = spaceMapper;
+        this.hotKeyDetector = hotKeyDetector;
     }
 
     @Override
     public List<ClientSpaceResponse> list() {
+        hotKeyDetector.record(CacheKeys.SPACE_LIST);
+
         List<ClientSpaceResponse> local = spaceListCache.getIfPresent(CacheKeys.SPACE_LIST);
         if (local != null) {
             return local;
@@ -84,12 +94,14 @@ public class ClientSpaceServiceImpl implements ClientSpaceService {
 
     @Override
     public ClientSpaceResponse detail(Long id) {
+        String key = CacheKeys.spaceDetail(id);
+        hotKeyDetector.record(key);
+
         ClientSpaceResponse local = spaceDetailCache.getIfPresent(id);
         if (local != null) {
             return local;
         }
 
-        String key = CacheKeys.spaceDetail(id);
         ClientSpaceResponse redisData = readSpaceDetailFromRedis(key);
         if (redisData != null) {
             spaceDetailCache.put(id, redisData);
@@ -109,6 +121,11 @@ public class ClientSpaceServiceImpl implements ClientSpaceService {
         return data;
     }
 
+    /**
+     * 查询空间状态
+     * @param id
+     * @return
+     */
     @Override
     public Space requireActiveSpace(Long id) {
         Space space = spaceMapper.selectOne(new LambdaQueryWrapper<Space>()
@@ -142,7 +159,11 @@ public class ClientSpaceServiceImpl implements ClientSpaceService {
             redis.opsForValue().set(
                 CacheKeys.SPACE_LIST,
                 objectMapper.writeValueAsString(data),
-                SPACE_LIST_TTL
+                hotKeyDetector.ttlDuration(
+                    SPACE_LIST_REDIS_BASE_TTL_SECONDS,
+                    SPACE_LIST_REDIS_MAX_TTL_SECONDS,
+                    CacheKeys.SPACE_LIST
+                )
             );
         } catch (Exception ignored) {
             /*
@@ -169,7 +190,11 @@ public class ClientSpaceServiceImpl implements ClientSpaceService {
             redis.opsForValue().set(
                 key,
                 objectMapper.writeValueAsString(data),
-                SPACE_DETAIL_TTL
+                hotKeyDetector.ttlDuration(
+                    SPACE_DETAIL_REDIS_BASE_TTL_SECONDS,
+                    SPACE_DETAIL_REDIS_MAX_TTL_SECONDS,
+                    key
+                )
             );
         } catch (Exception ignored) {
             /*

@@ -3,26 +3,25 @@ package com.spacemate.modules.auth.service.impl;
 import com.spacemate.domain.entity.LoginLog;
 import com.spacemate.infrastructure.persistence.mapper.LoginLogMapper;
 import com.spacemate.modules.auth.service.LoginLogService;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-
-import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
 public class LoginLogServiceImpl implements LoginLogService {
     private final LoginLogMapper loginLogMapper;
+
     /**
-     * 璁板綍涓€娆＄櫥褰?娉ㄥ唽浜嬩欢銆?
+     * 记录登录、注册等认证行为日志。
      *
-     * @param userId    鐢ㄦ埛 ID銆?
-     * @param identifier 鐧诲綍/娉ㄥ唽浣跨敤鐨勬爣璇嗭紙鎵嬫満鍙锋垨閭锛夈€?
-     * @param channel   娓犻亾锛歅ASSWORD/CODE/REGISTER銆?
-     * @param ip        瀹㈡埛绔?IP銆?
-     * @param userAgent 瀹㈡埛绔?UA銆?
-     * @param status    缁撴灉锛歋UCCESS/FAILED銆?
+     * @param userId 用户 ID。
+     * @param identifier 登录/注册使用的账号标识。
+     * @param channel 登录渠道，例如 PASSWORD、CODE、REGISTER。
+     * @param ip 客户端 IP。
+     * @param userAgent 客户端 UA。
+     * @param status 结果状态，例如 SUCCESS、FAILED。
      */
     @Override
     @Transactional
@@ -38,5 +37,3 @@ public class LoginLogServiceImpl implements LoginLogService {
         loginLogMapper.insert(loginLog);
     }
 }
-
-

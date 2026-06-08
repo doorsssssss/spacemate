@@ -4,22 +4,20 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.spacemate.domain.entity.AppUser;
 import com.spacemate.infrastructure.persistence.mapper.UserMapper;
 import com.spacemate.modules.auth.service.UserService;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+
     /**
-     * 鏍规嵁鎵嬫満鍙锋煡璇㈢敤鎴枫€?
-     *
-     * @param phone 鎵嬫満鍙枫€?
-     * @return 鐢ㄦ埛 Optional銆?
+     * 根据手机号查询用户。
      */
     @Override
     @Transactional(readOnly = true)
@@ -29,38 +27,28 @@ public class UserServiceImpl implements UserService {
         return Optional.ofNullable(userMapper.selectOne(queryWrapper));
     }
 
-
     /**
-     * 鏍规嵁閭鏌ヨ鐢ㄦ埛銆?
-     *
-     * @param email 閭鍦板潃銆?
-     * @return 鐢ㄦ埛 Optional銆?
+     * 根据邮箱查询用户。
      */
     @Override
     @Transactional(readOnly = true)
     public Optional<AppUser> findByEmail(String email) {
         LambdaQueryWrapper<AppUser> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(AppUser::getEmail,email);
+        queryWrapper.eq(AppUser::getEmail, email);
         return Optional.ofNullable(userMapper.selectOne(queryWrapper));
     }
 
     /**
-     * 鏍规嵁 ID 鏌ヨ鐢ㄦ埛銆?
-     *
-     * @param id 鐢ㄦ埛 ID銆?
-     * @return 鐢ㄦ埛 Optional銆?
+     * 根据 ID 查询用户。
      */
     @Override
     @Transactional(readOnly = true)
     public Optional<AppUser> findById(long id) {
-       return Optional.ofNullable(userMapper.selectById(id));
+        return Optional.ofNullable(userMapper.selectById(id));
     }
 
     /**
-     * 鍒ゆ柇鎵嬫満鍙锋槸鍚﹀瓨鍦ㄣ€?
-     *
-     * @param phone 鎵嬫満鍙枫€?
-     * @return 鏄惁瀛樺湪銆?
+     * 判断手机号是否已存在。
      */
     @Override
     @Transactional(readOnly = true)
@@ -71,10 +59,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 鍒ゆ柇閭鏄惁瀛樺湪銆?
-     *
-     * @param email 閭鍦板潃銆?
-     * @return 鏄惁瀛樺湪銆?
+     * 判断邮箱是否已存在。
      */
     @Transactional(readOnly = true)
     @Override
@@ -85,10 +70,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 鍒涘缓鐢ㄦ埛锛屽啓鍏ュ垱寤轰笌鏇存柊鏃堕棿骞舵寔涔呭寲銆?
-     *
-     * @param user 寰呭垱寤虹殑鐢ㄦ埛瀹炰綋銆?
-     * @return 鎸佷箙鍖栧悗鐨勭敤鎴峰疄浣撱€?
+     * 创建用户并维护创建/更新时间。
      */
     @Transactional
     @Override
@@ -101,8 +83,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 鏇存柊瀵嗙爜
-     * @param user
+     * 更新用户密码。
      */
     @Transactional
     @Override
@@ -111,5 +92,3 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
     }
 }
-
-

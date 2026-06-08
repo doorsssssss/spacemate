@@ -1,14 +1,14 @@
 package com.spacemate.modules.client.controller;
 
 import com.spacemate.common.api.ApiResponse;
-import com.spacemate.common.exception.BusinessException;
 import com.spacemate.common.api.PageResponse;
+import com.spacemate.common.exception.BusinessException;
 import com.spacemate.modules.client.dto.request.ClientCancelBookingRequest;
 import com.spacemate.modules.client.dto.request.ClientCreateBookingRequest;
 import com.spacemate.modules.client.dto.response.ClientBookingResponse;
 import com.spacemate.modules.client.service.ClientBookingService;
-import java.time.LocalDate;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -76,12 +76,8 @@ public class ClientBookingController {
     private String resolvePhone(String headerPhone, String queryPhone) {
         String phone = StringUtils.hasText(headerPhone) ? headerPhone : queryPhone;
         if (!StringUtils.hasText(phone)) {
-            throw new BusinessException(401, "閺堫亝宸块弶鍐跨礉鐠囬攱褰佹笟娑欏閺堝搫褰?");
+            throw new BusinessException(401, "请先登录或提供手机号");
         }
         return phone;
     }
 }
-
-
-
-

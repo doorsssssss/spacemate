@@ -2,19 +2,18 @@ package com.spacemate.modules.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.spacemate.common.util.BeanMergeUtils;
-import com.spacemate.common.exception.BusinessException;
 import com.spacemate.common.api.PageResponse;
+import com.spacemate.common.exception.BusinessException;
+import com.spacemate.common.util.BeanMergeUtils;
+import com.spacemate.domain.entity.AppUser;
+import com.spacemate.infrastructure.persistence.mapper.AppUserMapper;
 import com.spacemate.modules.admin.dto.request.AdminCreateUserRequest;
 import com.spacemate.modules.admin.dto.request.AdminUpdateUserRequest;
 import com.spacemate.modules.admin.dto.response.AdminUpdateResultResponse;
 import com.spacemate.modules.admin.dto.response.AdminUserResponse;
-import com.spacemate.domain.entity.AppUser;
-import com.spacemate.infrastructure.persistence.mapper.AppUserMapper;
+import com.spacemate.modules.admin.service.AdminUserService;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import com.spacemate.modules.admin.service.AdminUserService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +45,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUserResponse detail(Long id) {
         AppUser user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(404, "閻劍鍩涙稉宥呯摠閸?");
+            throw new BusinessException(404, "用户不存在");
         }
         return toResponse(user);
     }
@@ -55,7 +54,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUpdateResultResponse create(AdminCreateUserRequest request) {
         AppUser exists = appUserMapper.selectOne(new LambdaQueryWrapper<AppUser>().eq(AppUser::getPhone, request.getPhone()));
         if (exists != null) {
-            throw new BusinessException(409, "閹靛婧€閸欏嘲鍑＄€涙ê婀?");
+            throw new BusinessException(409, "手机号已存在");
         }
         AppUser user = new AppUser();
         user.setPhone(request.getPhone());
@@ -70,14 +69,14 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUpdateResultResponse update(Long id, AdminUpdateUserRequest request) {
         AppUser user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(404, "閻劍鍩涙稉宥呯摠閸?");
+            throw new BusinessException(404, "用户不存在");
         }
         if (request.getPhone() != null) {
             AppUser duplicate = appUserMapper.selectOne(new LambdaQueryWrapper<AppUser>()
                 .eq(AppUser::getPhone, request.getPhone())
                 .ne(AppUser::getId, id));
             if (duplicate != null) {
-                throw new BusinessException(409, "閹靛婧€閸欏嘲鍑＄€涙ê婀?");
+                throw new BusinessException(409, "手机号已存在");
             }
         }
         BeanUtils.copyProperties(request, user, BeanMergeUtils.nullPropertyNames(request));
@@ -89,10 +88,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUpdateResultResponse updateStatus(Long id, Integer status) {
         AppUser user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(404, "閻劍鍩涙稉宥呯摠閸?");
+            throw new BusinessException(404, "用户不存在");
         }
         if (user.getRole() != null && user.getRole() == 9 && status == 0) {
-            throw new BusinessException(409, "缁狅紕鎮婇崨妯垮閸欒渹绗夐崣顖滎洣閻?");
+            throw new BusinessException(409, "不能禁用管理员账号");
         }
         user.setStatus(status);
         int rows = appUserMapper.updateById(user);
@@ -103,10 +102,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUpdateResultResponse delete(Long id) {
         AppUser user = appUserMapper.selectById(id);
         if (user == null) {
-            throw new BusinessException(404, "閻劍鍩涙稉宥呯摠閸?");
+            throw new BusinessException(404, "用户不存在");
         }
         if (user.getRole() != null && user.getRole() == 9) {
-            throw new BusinessException(409, "缁狅紕鎮婇崨妯垮閸欒渹绗夐崣顖氬灩闂?");
+            throw new BusinessException(409, "不能删除管理员账号");
         }
         user.setDeleted(1);
         user.setStatus(0);
@@ -129,6 +128,3 @@ public class AdminUserServiceImpl implements AdminUserService {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 }
-
-
-

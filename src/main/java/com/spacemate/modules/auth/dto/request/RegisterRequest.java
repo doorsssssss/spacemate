@@ -5,9 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record RegisterRequest(
-    @NotNull(message = "鏍囪瘑绫诲瀷涓嶈兘涓虹┖") IdentifierType identifierType,
-    @NotBlank(message = "鏍囪瘑鍊间笉鑳戒负绌?") String identifier,
-    @NotBlank(message = "楠岃瘉鐮佷笉鑳戒负绌?") String code,
+    @NotNull(message = "账号类型不能为空") IdentifierType identifierType,
+    @NotBlank(message = "账号不能为空") String identifier,
+    @NotBlank(message = "验证码不能为空") String code,
     String password,
     boolean agreeTerms
 ) {

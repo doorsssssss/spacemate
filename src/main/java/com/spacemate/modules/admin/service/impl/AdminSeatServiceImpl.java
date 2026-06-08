@@ -110,6 +110,7 @@ public class AdminSeatServiceImpl implements AdminSeatService {
          * 并且会等当前数据库事务提交成功后再执行。
          */
         cacheInvalidationService.invalidateSeatAvailability(entity.getSpaceId());
+        cacheInvalidationService.invalidateSeatDetail(entity.getId());
         return new AdminSimpleIdResponse(entity.getId());
     }
 
@@ -148,6 +149,7 @@ public class AdminSeatServiceImpl implements AdminSeatService {
 
         cacheInvalidationService.invalidateSeatAvailability(oldSpaceId);
         cacheInvalidationService.invalidateSeatAvailability(entity.getSpaceId());
+        cacheInvalidationService.invalidateSeatDetail(id);
         return new AdminUpdateResultResponse(id, rows > 0);
     }
 
@@ -174,6 +176,7 @@ public class AdminSeatServiceImpl implements AdminSeatService {
             .set(Booking::getCancelReason, "管理员删除座位"));
 
         cacheInvalidationService.invalidateSeatAvailability(entity.getSpaceId());
+        cacheInvalidationService.invalidateSeatDetail(id);
         return new AdminDeleteResultResponse(id, rows > 0);
     }
 

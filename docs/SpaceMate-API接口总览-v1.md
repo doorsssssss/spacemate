@@ -1,5 +1,12 @@
 # 项目 API 接口总览（SpaceMate v1）
 
+## 版本与修订历史
+
+| 版本 | 日期 | 说明 |
+| --- | --- | --- |
+| v1.0 | 2026-06-04 | 初版接口总览 |
+| v1.1 | 2026-06-07 | [精进] 对齐当前实现，补充缓存、热度探测、评论缓存策略，并修正空间列表/详情的返回结构 |
+
 ## 公共约定
 
 - 基础路径：`/api/v1`
@@ -36,6 +43,14 @@
   "traceId": "a1b2c3d4e5f6"
 }
 ```
+
+[精进] 缓存与性能说明：
+
+- 空间列表、空间详情、可预约座位查询、评论列表均有缓存层，读多接口优先从本地缓存或 Redis 返回。
+- 热点 Key 会被 `HotKeyDetector` 记录访问次数，并按热度动态延长 TTL，减少热点接口频繁回源。
+- 公共缓存不保存 `liked` 这类用户态字段，返回前再按当前用户叠加，避免把个人状态污染到公共缓存里。
+- 座位可预约结果使用“版本号 + 短 TTL”组合失效，不扫描 Redis 大量 Key。
+- 评论列表在新增、点赞、取消点赞后递增版本号，旧缓存自然失效。
 
 ## 状态与枚举约定
 
@@ -149,37 +164,30 @@
 
 - 方法：`GET`
 - 路径：`/api/v1/spaces`
-- 查询参数：
-  - `status` `int`（可选）
-  - `keyword` `string`（可选，按名称模糊）
-  - `page` `int`（默认 1）
-  - `size` `int`（默认 20，最大 100）
-- 响应：`object`
-  - `items` `SpaceItem[]`
-  - `page` `int`
-  - `size` `int`
-  - `total` `long`
+- [精进] 当前实现直接返回“全部已存在的空间”，不做分页、不做状态过滤，便于客户端首页一次性展示。
+- 响应：`SpaceItem[]`
 - 数组元素结构：`SpaceItem`
   - `id` `long`
   - `code` `string`
   - `name` `string`
   - `openStartTime` `string`
   - `openEndTime` `string`
+  - `rules` `string`
   - `priceHourly` `number`
   - `status` `int`
-- 示例：`curl "https://host/api/v1/spaces?page=1&size=20"`
+- 示例：`curl "https://host/api/v1/spaces"`
 
 ### 2. 空间详情
 
 - 方法：`GET`
 - 路径：`/api/v1/spaces/{id}`
+- [精进] 详情接口同样走本地缓存 + Redis 短缓存，适合空间页反复打开。
 - 响应：`object`
   - `id` `long`
   - `code` `string`
   - `name` `string`
   - `openStartTime` `string`
   - `openEndTime` `string`
-  - `wifiSsid` `string`
   - `rules` `string`
   - `priceHourly` `number`
   - `status` `int`
@@ -194,6 +202,8 @@
   - `size` `int`（默认 20，最大 100）
 - 请求头：
   - `X-User-Phone`：可选，用于返回 `liked` 状态
+- 查询参数兼容：
+  - `phone` `string`（可选，与 `X-User-Phone` 等价，兼容基础版前端）
 - 响应：`object`
   - `items` `CommentItem[]`
   - `page` `int`
@@ -213,6 +223,7 @@
   - `liked` `boolean`
   - `createdAt` `string`
   - `replies` `CommentItem[]`
+- [精进] 评论列表采用版本化缓存，公共缓存只保存评论内容与计数，不保存 `liked`；`liked` 会在返回前按当前用户状态叠加。
 - 示例：
 
 ```http
@@ -275,6 +286,7 @@ X-User-Phone: 13800000000
 
 - 方法：`GET`
 - 路径：`/api/v1/seats/available`
+- [精进] 当前实现是“短 TTL + 版本号失效”的组合方案，适合变化很快的可预约座位数据。
 - 查询参数：
   - `spaceId` `long`（必填）
   - `startAt` `string`（必填，ISO）
@@ -301,6 +313,7 @@ X-User-Phone: 13800000000
 
 - 方法：`GET`
 - 路径：`/api/v1/seats/{id}`
+- [精进] 座位详情也有短缓存，管理员修改座位后会同步失效。
 - 响应：`object`
   - `id` `long`
   - `spaceId` `long`
@@ -326,6 +339,8 @@ X-User-Phone: 13800000000
 - 路径：`/api/v1/spaces/{spaceId}/comments`
 - 请求头：
   - `X-User-Phone`：必填，基础版身份标识
+- 查询参数兼容：
+  - `phone` `string`（可选，优先级低于 `X-User-Phone`）
 - 请求体：
 
 ```json
@@ -338,6 +353,7 @@ X-User-Phone: 13800000000
 - 说明：
   - `parentId=0` 表示一级评论
   - `parentId>0` 表示回复某条评论
+  - [精进] 发布后会递增该空间评论列表的版本号，促使旧缓存自然失效
 - 响应：`object`
   - `id` `long`
   - `spaceId` `long`
@@ -372,6 +388,8 @@ X-User-Phone: 13800000000
 - 路径：`/api/v1/comments/{commentId}/like`
 - 请求头：
   - `X-User-Phone`：必填
+- 查询参数兼容：
+  - `phone` `string`（可选，优先级低于 `X-User-Phone`）
 - 响应：`object`
   - `commentId` `long`
   - `liked` `boolean`
@@ -405,6 +423,8 @@ X-User-Phone: 13800000000
 - 路径：`/api/v1/comments/{commentId}/like`
 - 请求头：
   - `X-User-Phone`：必填
+- 查询参数兼容：
+  - `phone` `string`（可选，优先级低于 `X-User-Phone`）
 - 响应：`object`
   - `commentId` `long`
   - `liked` `boolean`
